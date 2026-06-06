@@ -86,7 +86,29 @@ const extractFormFields = async (page) => {
     });
 }
 
+async function uploadFileFromURL(fileUrl, fileName = 'resume.pdf') {
+    // Fetch the file
+    const response = await fetch(fileUrl);
+    const blob = await response.blob();
+    const file = new File([blob], fileName, { type: blob.type });
+
+    // Step 2: Get the input element
+    const input = document.querySelector('#resume-upload-input');
+
+    // Step 3: Inject the file into the input using DataTransfer
+    const dataTransfer = new DataTransfer();
+    dataTransfer.items.add(file);
+    input.files = dataTransfer.files;
+
+    // Step 4: Trigger change & input events so the ATS site detects the upload
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+
+    console.log('✅ File injected:', input.files[0]);
+}
+
 module.exports = {
     findAndClickApplyButton,
-    extractFormFields
+    extractFormFields,
+    uploadFileFromURL,
 };

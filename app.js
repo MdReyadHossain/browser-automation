@@ -17,10 +17,10 @@ const { findAndClickApplyButton, extractFormFields } = require('./src/utils');
             index: i,
             tag: el.tagName,
             role: el.getAttribute('role') || '',
-            text: el.textContent.trim().substring(0, 100),
+            text: el.textContent.trim().substring(0, 100)
         })).filter(el => el.text.length > 0);
     });
-    console.log(JSON.stringify(clickables, null, 2));
+    // console.log(JSON.stringify(clickables, null, 2));
 
     console.log('\n========== CLICKING APPLY BUTTON ==========');
     const clicked = await findAndClickApplyButton(page);
@@ -32,6 +32,9 @@ const { findAndClickApplyButton, extractFormFields } = require('./src/utils');
     console.log('\n========== FORM FIELDS ==========');
     const fields = await extractFormFields(page);
 
+    // file upload here
+
     console.log(JSON.stringify(fields, null, 2));
     console.log(`\n✅ Total fields found: ${fields.length}`);
 })();
+
