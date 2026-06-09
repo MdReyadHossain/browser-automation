@@ -1,3 +1,5 @@
+const { getFormFieldsWithAI } = require("./service");
+
 const findAndClickApplyButton = async (page) => {
     const applySelectors = [
         { type: 'role', role: 'tab', options: { name: /apply|application|formulario|bewerben|candidatura|postuler/i } },
@@ -40,51 +42,180 @@ const findAndClickApplyButton = async (page) => {
 const extractFormFields = async (page) => {
     return await page.evaluate(() => {
         const results = [];
-        const elements = document.querySelectorAll(
-            'input:not([type="hidden"]), select, textarea, [role="combobox"]'
+        const processedRadioNames = new Set();
+
+        // Ashby specific — সব field entry container
+        const fieldEntries = document.querySelectorAll(
+            '.ashby-application-form-field-entry, [data-field-path]'
         );
 
-        elements.forEach((el, i) => {
-            let label = '';
+        fieldEntries.forEach((entry, i) => {
+            // এই entry তে question/label কী
+            const questionEl = entry.querySelector(
+                '.ashby-application-form-question-title, label'
+            );
+            const groupQuestion = questionEl?.textContent?.trim() || '';
 
-            if (el.id) {
-                const labelEl = document.querySelector(`label[for="${el.id}"]`);
-                if (labelEl) label = labelEl.textContent.trim();
-            }
-            if (!label) {
-                const closest = el.closest('label');
-                if (closest) label = closest.textContent.trim();
-            }
-            if (!label && el.getAttribute('aria-label')) {
-                label = el.getAttribute('aria-label');
-            }
-            if (!label && el.getAttribute('aria-labelledby')) {
-                const labelEl = document.getElementById(el.getAttribute('aria-labelledby'));
-                if (labelEl) label = labelEl.textContent.trim();
-            }
-            if (!label && el.placeholder) {
-                label = el.placeholder;
+            // =====================
+            // Radio
+            // =====================
+            const radios = entry.querySelectorAll('input[type="radio"]');
+            if (radios.length > 0) {
+                const firstName = radios[0].name;
+                if (processedRadioNames.has(firstName)) return;
+                processedRadioNames.add(firstName);
+
+                const radioOptions = Array.from(radios).map(r => {
+                    // option text — parent div এ থাকে
+                    const optionDiv = r.closest('._option_1258i_34, [class*="_option_"]');
+                    return optionDiv?.textContent?.trim() || r.value;
+                });
+
+                results.push({
+                    index: i,
+                    ats: 'ashby',
+                    type: 'radio',
+                    name: firstName,
+                    label: groupQuestion || '⚠️ NO QUESTION FOUND',
+                    groupQuestion,
+                    radioOptions,
+                    required: !!questionEl?.classList?.contains('_required_f7cvd_91') ||
+                              !!entry.querySelector('[class*="_required_"]'),
+                    options: [],
+                });
+                return;
             }
 
-            results.push({
-                index: i,
-                tag: el.tagName,
-                type: el.type || 'text',
-                name: el.name || '',
-                id: el.id || '',
-                placeholder: el.placeholder || '',
-                label: label || '⚠️ NO LABEL FOUND',
-                role: el.getAttribute('role') || '',
-                required: el.required,
-                options: el.tagName === 'SELECT'
-                    ? Array.from(el.options).map(o => ({ value: o.value, text: o.text }))
-                    : [],
-            });
+            // =====================
+            // File Upload
+            // =====================
+            const fileInput = entry.querySelector('input[type="file"]');
+            if (fileInput) {
+                results.push({
+                    index: i,
+                    ats: 'ashby',
+                    type: 'file',
+                    name: fileInput.name || '',
+                    id: fileInput.id || '',
+                    label: groupQuestion || 'Resume',
+                    groupQuestion: '',
+                    required: !!entry.querySelector('[class*="_required_"]'),
+                    options: [],
+                });
+                return;
+            }
+
+            // =====================
+            // Combobox / Custom Dropdown (Ashby salary field etc)
+            // =====================
+            const combobox = entry.querySelector('[role="combobox"], [role="listbox"]');
+            if (combobox) {
+                // Options খোঁজো
+                const optionEls = entry.querySelectorAll('[role="option"]');
+                const options = Array.from(optionEls).map(o => o.textContent.trim());
+
+                results.push({
+                    index: i,
+                    ats: 'ashby',
+                    type: 'combobox',
+                    name: combobox.getAttribute('name') || '',
+                    id: combobox.id || '',
+                    label: groupQuestion || '⚠️ NO LABEL FOUND',
+                    groupQuestion: '',
+                    required: !!entry.querySelector('[class*="_required_"]'),
+                    options,
+                });
+                return;
+            }
+
+            // =====================
+            // Select
+            // =====================
+            const select = entry.querySelector('select');
+            if (select) {
+                results.push({
+                    index: i,
+                    ats: 'ashby',
+                    type: 'select',
+                    name: select.name || '',
+                    id: select.id || '',
+                    label: groupQuestion || '⚠️ NO LABEL FOUND',
+                    groupQuestion: '',
+                    required: select.required,
+                    options: Array.from(select.options).map(o => ({
+                        value: o.value,
+                        text: o.text,
+                    })),
+                });
+                return;
+            }
+
+            // =====================
+            // Textarea
+            // =====================
+            const textarea = entry.querySelector('textarea');
+            if (textarea) {
+                results.push({
+                    index: i,
+                    ats: 'ashby',
+                    type: 'textarea',
+                    name: textarea.name || '',
+                    id: textarea.id || '',
+                    placeholder: textarea.placeholder || '',
+                    label: groupQuestion || '⚠️ NO LABEL FOUND',
+                    groupQuestion: '',
+                    required: textarea.required,
+                    options: [],
+                });
+                return;
+            }
+
+            // =====================
+            // Text / Email / Tel etc
+            // =====================
+            const input = entry.querySelector('input:not([type="hidden"])');
+            if (input) {
+                results.push({
+                    index: i,
+                    ats: 'ashby',
+                    type: input.type || 'text',
+                    name: input.name || '',
+                    id: input.id || '',
+                    placeholder: input.placeholder || '',
+                    label: groupQuestion || input.placeholder || '⚠️ NO LABEL FOUND',
+                    groupQuestion: '',
+                    required: input.required || !!entry.querySelector('[class*="_required_"]'),
+                    options: [],
+                });
+                return;
+            }
         });
 
         return results;
     });
-}
+};
+
+const extractFormFieldsWithAI = async (page, openai) => {
+    const formHTML = await page.evaluate(() => {
+        const form = document.querySelector('form') || document.querySelector('main') || document.body;
+        return form.innerHTML;
+    });
+    const fields = await getFormFieldsWithAI(formHTML);
+
+    console.log('\n========== AI EXTRACTED FIELDS ==========');
+    fields.forEach(f => {
+        if (f.type === 'radio') {
+            console.log(`[RADIO]  "${f.groupQuestion}" → ${f.radioOptions?.join(' | ')}`);
+        } else if (f.type === 'select') {
+            console.log(`[SELECT] "${f.label}" → ${f.selectOptions?.slice(0, 3).join(' | ')}...`);
+        } else {
+            console.log(`[${f.type.toUpperCase()}] "${f.label}" ${f.required ? '(required)' : ''}`);
+        }
+    });
+    console.log(`\n✅ Total fields extracted: ${fields.length}`);
+
+    return fields;
+};
 
 async function uploadFileFromURL(fileUrl, fileName = 'resume.pdf') {
     // Fetch the file
@@ -110,5 +241,6 @@ async function uploadFileFromURL(fileUrl, fileName = 'resume.pdf') {
 module.exports = {
     findAndClickApplyButton,
     extractFormFields,
+    extractFormFieldsWithAI,
     uploadFileFromURL,
 };

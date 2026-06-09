@@ -1,5 +1,13 @@
 const { chromium } = require('playwright');
-const { findAndClickApplyButton, extractFormFields } = require('./src/utils');
+const express = require('express');
+const cors = require('cors');
+require("dotenv").config();
+const { findAndClickApplyButton, extractFormFields, extractFormFieldsWithAI } = require('./src/utils');
+const AshbyATS = require('./src/ats/Ashby.ats.service');
+
+const app = express();
+
+app.use(cors());
 
 (async () => {
     const browser = await chromium.launch({ headless: false });
@@ -23,18 +31,23 @@ const { findAndClickApplyButton, extractFormFields } = require('./src/utils');
     // console.log(JSON.stringify(clickables, null, 2));
 
     console.log('\n========== CLICKING APPLY BUTTON ==========');
-    const clicked = await findAndClickApplyButton(page);
-    if (!clicked) {
-        console.log('⚠️ Could not find apply button, stopping...');
-        return;
-    }
+    // const clicked = await findAndClickApplyButton(page);
+    // if (!clicked) {
+    //     console.log('⚠️ Could not find apply button, stopping...');
+    //     return;
+    // }
 
-    console.log('\n========== FORM FIELDS ==========');
-    const fields = await extractFormFields(page);
+    // console.log('\n========== FORM FIELDS ==========');
+    // const fields = await extractFormFields(page);
+    // const fields = await extractFormFieldsWithAI(page);
+
+    const ashby = new AshbyATS(page);
+    await ashby.clickApplyButton();
+
+    const fields = await ashby.getFields();
 
     // file upload here
 
     console.log(JSON.stringify(fields, null, 2));
     console.log(`\n✅ Total fields found: ${fields.length}`);
 })();
-

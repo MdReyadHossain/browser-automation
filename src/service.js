@@ -1,4 +1,5 @@
 const { OpenAI } = require("openai");
+
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 const fillUpJobForm = async (fields, userInfo) => {
@@ -98,6 +99,99 @@ const fillUpJobForm = async (fields, userInfo) => {
     }
 };
 
+const getFormFieldsWithAI = async (formHTML) => {
+    try {
+        const prompt = `
+            You are an expert at analyzing HTML forms for job applications.
+            Analyze the following HTML and extract ALL form fields.
+
+            For radio buttons, find the parent container's question text — it's usually a heading or paragraph ABOVE the radio group.
+            For checkboxes, find the associated question or label similarly.
+            For grouped fields (same "name" attribute), treat them as ONE field with multiple options.
+
+            HTML:
+            ${formHTML.substring(0, 15000)}
+
+            Return ONLY a valid JSON array, no explanation, no markdown:
+            for example: [
+                {
+                    "index": 0,
+                    "type": "text",
+                    "label": "First Name",
+                    "placeholder": "",
+                    "name": "first_name",
+                    "required": true,
+                    "groupQuestion": ""
+                },
+                {
+                    "index": 1,
+                    "type": "radio",
+                    "label": "Yes, No",
+                    "placeholder": "",
+                    "name": "work_authorization",
+                    "required": true,
+                    "groupQuestion": "Are you legally authorized to work in France?",
+                    "radioOptions": ["Yes", "No"]
+                },
+                {
+                    "index": 2,
+                    "type": "select",
+                    "label": "Country",
+                    "placeholder": "",
+                    "name": "country",
+                    "required": false,
+                    "groupQuestion": "",
+                    "selectOptions": ["United States", "Bangladesh", "France"]
+                },
+                {
+                    "index": 3,
+                    "type": "file",
+                    "label": "Resume",
+                    "placeholder": "",
+                    "name": "resume",
+                    "required": true,
+                    "groupQuestion": ""
+                },
+                {
+                    "index": 4,
+                    "type": "checkbox",
+                    "label": "I agree to terms",
+                    "placeholder": "",
+                    "name": "terms",
+                    "required": true,
+                    "groupQuestion": ""
+                }
+            ]
+
+            IMPORTANT:
+            - Radio groups with same "name" → merge into ONE object with radioOptions array
+            - Select dropdowns → include selectOptions array with all option texts
+            - index must be sequential starting from 0
+            - groupQuestion is the question/heading above the radio or checkbox group
+        `;
+
+        const response = await openai.chat.completions.create({
+            model: "gpt-4o",
+            messages: [{ role: "user", content: prompt }],
+            temperature: 0.1,
+        });
+
+        const raw = response?.choices[0]?.message?.content?.trim();
+        const cleaned = raw
+            .replace(/^```json\s*/i, '')
+            .replace(/^```\s*/i, '')
+            .replace(/```$/i, '')
+            .trim();
+
+        console.log("Raw AI response for form fields:", raw);
+        return JSON.parse(cleaned);
+    } catch (error) {
+        console.error("Error extracting form fields with AI:", error);
+        throw new Error("Failed to extract form fields");
+    }
+}
+
 module.exports = {
     fillUpJobForm,
+    getFormFieldsWithAI,
 };
