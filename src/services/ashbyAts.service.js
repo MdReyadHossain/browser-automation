@@ -1,14 +1,9 @@
-// ats/ashby.js
-
-class AshbyATS {
+class AshbyAtsService {
 
     constructor(page) {
         this.page = page;
     }
 
-    // =====================
-    // Apply Button Click
-    // =====================
     async clickApplyButton() {
         const applySelectors = [
             { type: 'role', role: 'tab', options: { name: /apply|application|formulario|bewerben|candidatura|postuler/i } },
@@ -48,10 +43,7 @@ class AshbyATS {
         return false;
     }
 
-    // =====================
-    // Extract Form Fields
-    // =====================
-    async extractFormFields() {
+    async _extractFormFields() {
         await this.page.waitForTimeout(1000);
 
         const fields = await this.page.evaluate(() => {
@@ -121,7 +113,7 @@ class AshbyATS {
                         label: groupQuestion || '⚠️ NO LABEL FOUND',
                         groupQuestion: '',
                         required: isRequired,
-                        options: [], // extractComboboxOptions() এ fill হবে
+                        options: []
                     });
                     return;
                 }
@@ -186,31 +178,32 @@ class AshbyATS {
         return fields;
     }
 
-    // =====================
-    // Extract Combobox Options (click করে load করতে হয়)
-    // =====================
-    async extractComboboxOptions() {
-        const comboboxes = await this.page.locator(
-            '.ashby-application-form-field-entry [role="combobox"], [data-field-path] [role="combobox"]'
+    async _extractComboboxOptions() {
+        const toggleButtons = await this.page.locator(
+            '.ashby-application-form-field-entry ._toggleButton_d7ago_32, [data-field-path] ._toggleButton_d7ago_32'
         ).all();
 
         const results = [];
 
-        for (const combobox of comboboxes) {
-            const label = await combobox.evaluate(el => {
+        for (const button of toggleButtons) {
+            const label = await button.evaluate(el => {
                 const entry = el.closest('.ashby-application-form-field-entry, [data-field-path]');
                 return entry?.querySelector('.ashby-application-form-question-title, label')?.textContent?.trim() || '';
             });
 
-            await combobox.click();
+            await button.click();
             await this.page.waitForTimeout(500);
+
+            await this.page.waitForSelector('[role="listbox"] [role="option"]', { timeout: 3000 })
+                .catch(() => null);
 
             const options = await this.page.evaluate(() => {
                 return Array.from(
                     document.querySelectorAll('[role="listbox"] [role="option"]')
-                ).map(o => o.textContent.trim());
+                ).map(o => o.textContent.trim()).filter(t => t.length > 0);
             });
 
+            console.log(`[COMBOBOX] "${label}" → ${options.length} options found`);
             results.push({ label, options });
 
             await this.page.keyboard.press('Escape');
@@ -220,14 +213,10 @@ class AshbyATS {
         return results;
     }
 
-    // =====================
-    // Get All Fields (extract + merge combobox options)
-    // =====================
     async getFields() {
-        const fields = await this.extractFormFields();
-        const comboboxOptions = await this.extractComboboxOptions();
+        const fields = await this._extractFormFields();
+        const comboboxOptions = await this._extractComboboxOptions();
 
-        // Combobox options merge করো
         for (const field of fields) {
             if (field.type === 'combobox') {
                 const match = comboboxOptions.find(c => c.label === field.label);
@@ -253,4 +242,4 @@ class AshbyATS {
     }
 }
 
-module.exports = AshbyATS;
+module.exports = AshbyAtsService;

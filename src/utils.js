@@ -1,5 +1,3 @@
-const { getFormFieldsWithAI } = require("./service");
-
 const findAndClickApplyButton = async (page) => {
     const applySelectors = [
         { type: 'role', role: 'tab', options: { name: /apply|application|formulario|bewerben|candidatura|postuler/i } },
@@ -80,7 +78,7 @@ const extractFormFields = async (page) => {
                     groupQuestion,
                     radioOptions,
                     required: !!questionEl?.classList?.contains('_required_f7cvd_91') ||
-                              !!entry.querySelector('[class*="_required_"]'),
+                        !!entry.querySelector('[class*="_required_"]'),
                     options: [],
                 });
                 return;
@@ -110,7 +108,6 @@ const extractFormFields = async (page) => {
             // =====================
             const combobox = entry.querySelector('[role="combobox"], [role="listbox"]');
             if (combobox) {
-                // Options খোঁজো
                 const optionEls = entry.querySelectorAll('[role="option"]');
                 const options = Array.from(optionEls).map(o => o.textContent.trim());
 
@@ -193,28 +190,6 @@ const extractFormFields = async (page) => {
 
         return results;
     });
-};
-
-const extractFormFieldsWithAI = async (page, openai) => {
-    const formHTML = await page.evaluate(() => {
-        const form = document.querySelector('form') || document.querySelector('main') || document.body;
-        return form.innerHTML;
-    });
-    const fields = await getFormFieldsWithAI(formHTML);
-
-    console.log('\n========== AI EXTRACTED FIELDS ==========');
-    fields.forEach(f => {
-        if (f.type === 'radio') {
-            console.log(`[RADIO]  "${f.groupQuestion}" → ${f.radioOptions?.join(' | ')}`);
-        } else if (f.type === 'select') {
-            console.log(`[SELECT] "${f.label}" → ${f.selectOptions?.slice(0, 3).join(' | ')}...`);
-        } else {
-            console.log(`[${f.type.toUpperCase()}] "${f.label}" ${f.required ? '(required)' : ''}`);
-        }
-    });
-    console.log(`\n✅ Total fields extracted: ${fields.length}`);
-
-    return fields;
 };
 
 async function uploadFileFromURL(fileUrl, fileName = 'resume.pdf') {

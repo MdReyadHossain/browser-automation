@@ -2,8 +2,9 @@ const { chromium } = require('playwright');
 const express = require('express');
 const cors = require('cors');
 require("dotenv").config();
-const { findAndClickApplyButton, extractFormFields, extractFormFieldsWithAI } = require('./src/utils');
-const AshbyATS = require('./src/ats/Ashby.ats.service');
+const AshbyAtsService = require('./src/services/ashbyAts.service');
+const OpenAiService = require('./src/services/openAi.service');
+const { userInfo } = require('./FakeData');
 
 const app = express();
 
@@ -14,7 +15,8 @@ app.use(cors());
     const page = await browser.newPage();
 
     // const jobUrl = 'https://jobs.bt1.ai/company/bt1/325';
-    const jobUrl = 'https://jobs.ashbyhq.com/pennylane/96e08392-d87e-4db3-9888-3934abb9c7ea';
+    // const jobUrl = 'https://jobs.ashbyhq.com/pennylane/96e08392-d87e-4db3-9888-3934abb9c7ea';
+    const jobUrl = 'https://jobs.ashbyhq.com/pennylane/e15c5264-3f5c-4b4f-8de7-5cb18f28cab0';
     await page.goto(jobUrl);
     await page.waitForLoadState('networkidle');
 
@@ -41,11 +43,11 @@ app.use(cors());
     // const fields = await extractFormFields(page);
     // const fields = await extractFormFieldsWithAI(page);
 
-    const ashby = new AshbyATS(page);
+    const ashby = new AshbyAtsService(page);
     await ashby.clickApplyButton();
 
     const fields = await ashby.getFields();
-
+    await OpenAiService.getFormFieldsAnswers(fields, userInfo);
     // file upload here
 
     console.log(JSON.stringify(fields, null, 2));
